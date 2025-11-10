@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="ar">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Video → GIF Converter — أحمر/أسود</title>
+
+<!-- GIF.js library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+
+<style>
+  :root{
+    --bg:#0b0b0b;
+    --card:#141212;
+    --accent:#c21414;
+    --accent-2:#ff4646;
+    --text:#e9e9e9;
+    --muted:#bdbdbd;
+  }
+  *{box-sizing:border-box;font-family:Tahoma, Arial, "Noto Nastaliq Urdu", sans-serif}
+  body{
+    margin:0;
+    min-height:100vh;
+    background: radial-gradient(circle at 10% 10%, rgba(194,20,20,0.08), transparent 10%), linear-gradient(180deg,#070707 0%, #0e0e0e 100%);
+    color:var(--text);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:28px;
+  }
+  .app{
+    width:980px;
+    max-width:96%;
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.12));
+    border-radius:14px;
+    padding:18px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.7);
+    border:1px solid rgba(255,255,255,0.03);
+    display:grid;
+    grid-template-columns: 420px 1fr;
+    gap:18px;
+    overflow:hidden;
+  }
+
+  /* Left column: preview + controls */
+  .left{
+    background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.06));
+    border-radius:10px;
+    padding:14px;
+    position:relative;
+    overflow:hidden;
+  }
+  .logo{
+    position:absolute;
+    left:12px;
+    top:12px;
+    display:flex;
+    gap:8px;
+    align-items:center;
+  }
+  .logo .mark{
+    width:46px;height:46px;border-radius:8px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    display:flex;align-items:center;justify-content:center;
+    box-shadow: 0 6px 18px rgba(194,20,20,0.25);
+    transform: rotate(-10deg);
+  }
+  .logo h1{margin:0;font-size:15px;color:var(--text);font-weight:700}
+  .logo p{margin:0;font-size:11px;color:var(--muted);opacity:0.9}
+
+  video#preview{
+    width:100%;
+    border-radius:8px;
+    background:#000;
+    display:block;
+    margin-top:56px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.6);
+  }
+  .controls{
+    margin-top:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+  }
+  .btn{
+    background:transparent;
+    border:1px solid rgba(255,255,255,0.06);
+    color:var(--text);
+    padding:10px 14px;border-radius:10px;cursor:pointer;
+    transition:all .18s; font-weight:600;
+    display:inline-flex; gap:8px; align-items:center;
+  }
+  .btn.primary{
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    color:#fff;border:0; box-shadow:0 10px 30px rgba(194,20,20,0.18);
+  }
+  .btn:hover{transform:translateY(-4px)}
+  .range{width:100%}
+  .row{display:flex; gap:8px; align-items:center}
+  label{font-size:13px;color:var(--muted)}
+
+  /* Right column: options + progress + result */
+  .right{
+    padding:14px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.04));
+    border-radius:10px;
+  }
+  .panel{background: linear-gradient(90deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02)); padding:12px; border-radius:8px; margin-bottom:12px}
+  .panel h3{margin:0 0 8px 0; font-size:15px}
+  .stat{font-size:13px;color:var(--muted); margin-top:6px}
+
+  .progress{
+    height:12px;
+    background:rgba(255,255,255,0.04);
+    border-radius:8px;
+    overflow:hidden;
+  }
+  .progress > i{display:block;height:100%; width:0%; background:linear-gradient(90deg,var(--accent),var(--accent-2)); transition:width .16s linear}
+
+  .output{
+    display:flex; gap:12px; align-items:center; margin-top:10px; flex-wrap:wrap;
+  }
+  .thumb{width:160px;height:90px;background:#000;border-radius:6px; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:12px}
+  .download-link{color:#fff; text-decoration:none; background:linear-gradient(90deg,var(--accent),var(--accent-2)); padding:10px 14px;border-radius:10px; font-weight:700}
+
+  footer{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:10px}
+  .copyright{font-size:13px;color:var(--muted)}
+  .marquee{font-size:12px;color:var(--muted); opacity:0.8; overflow:hidden; white-space:nowrap}
+
+  /* small */
+  @media(max-width:880px){
+    .app{grid-template-columns:1fr; padding:12px}
+  }
+
+  /* subtle animated gradient border */
+  .app::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    border-radius:14px;
+    background:linear-gradient(120deg, rgba(255,255,255,0.02), rgba(194,20,20,0.06), rgba(255,255,255,0.02));
+    mix-blend-mode:overlay;
+    opacity:0.8;
+    transform:translateZ(0);
+  }
+</style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Video to GIF converter">
+    <div class="left">
+      <div class="logo">
+        <div class="mark">V</div>
+        <div>
+          <h1>V2GIF</h1>
+          <p>تحويل الفيديو إلى GIF</p>
+        </div>
+      </div>
+
+      <video id="preview" controls crossorigin="anonymous" playsinline>
+        <!-- source set by JS -->
+      </video>
+
+      <div class="controls">
+        <label class="btn" for="file">اختيار فيديو
+          <input id="file" type="file" accept="video/*" style="display:none">
+        </label>
+
+        <button class="btn" id="set-start" title="ضع نقطة بداية">▼ Start</button>
+        <button class="btn" id="set-end" title="ضع نقطة نهاية">▲ End</button>
+
+        <div style="flex:1"></div>
+
+        <button class="btn primary" id="convert">✦ تحويل إلى GIF</button>
+      </div>
+
+      <div style="margin-top:12px">
+        <div class="row">
+          <div style="flex:1">
+            <label>نقطة البداية: <span id="startTime">0.00</span> ث</label>
+            <input id="startRange" type="range" min="0" max="100" value="0" class="range">
+          </div>
+          <div style="width:14px"></div>
+          <div style="flex:1">
+            <label>نقطة النهاية: <span id="endTime">0.00</span> ث</label>
+            <input id="endRange" type="range" min="0" max="100" value="100" class="range">
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="right">
+      <div class="panel">
+        <h3>الإعدادات</h3>
+        <div class="row" style="margin-top:8px">
+          <label style="width:110px">دقة الإخراج</label>
+          <select id="resolution">
+            <option value="auto">حافظ على دقة الفيديو (افتراضي)</option>
+            <option value="1280">1280px عرض</option>
+            <option value="854">854px عرض (HD)</option>
+            <option value="640">640px عرض</option>
+            <option value="480">480px عرض</option>
+            <option value="320">320px عرض</option>
+          </select>
+        </div>
+
+        <div class="row" style="margin-top:8px">
+          <label style="width:110px">الإطارات في الثانية</label>
+          <input id="fps" type="number" min="1" max="120" value="60" style="width:120px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text)">
+        </div>
+
+        <div style="margin-top:8px" class="row">
+          <label style="width:110px">شعار/نص الحقوق</label>
+          <input id="watermarkText" type="text" value="© V2GIF - حقوق محفوظة" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text)">
+        </div>
+
+        <div style="margin-top:8px" class="row">
+          <label style="width:110px">مقياس الشعار</label>
+          <input id="wmScale" type="range" min="8" max="36" value="18" style="flex:1">
+        </div>
+
+        <div style="margin-top:8px" class="row">
+          <label style="width:110px">صورة الشعار</label>
+          <input id="watermarkImage" type="file" accept="image/*" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text)">
+        </div>
+
+        <div style="margin-top:8px" class="row">
+          <label style="width:110px">تفعيل الشعار</label>
+          <input id="enableWatermark" type="checkbox" checked style="width:20px;height:20px">
+        </div>
+
+        <div style="margin-top:8px" class="stat">
+          ملاحظة: GIF بسرعة 60 إطار/ثانية سيكون ملفًا كبيرًا. قلل الإطار أو الدقة إذا أردت ملفًا أصغر.
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>التقدم</h3>
+        <div class="progress" aria-hidden="false"><i id="progressBar" style="width:0%"></i></div>
+        <div class="stat" id="progressText" style="margin-top:8px">لا توجد عملية حالية</div>
+      </div>
+
+      <div class="panel">
+        <h3>النتيجة</h3>
+        <div class="output" id="resultArea">
+          <div class="thumb" id="thumb">لا يوجد GIF بعد</div>
+        </div>
+      </div>
+
+      <footer>
+        <div class="copyright">حقوق © <strong>V2GIF</strong> — جميع الحقوق محفوظة</div>
+        <div class="marquee">ثيم: أحمر/أسود • واجهة متحركة • صنع بواسطة أداة تحويل فيديو → GIF</div>
+      </footer>
+    </div>
+  </div>
+
+<script>
+/*
+  Main logic:
+  - Use HTMLVideoElement to load video (object URL)
+  - Let user set start/end via sliders or buttons that capture current time
+  - On convert: play video from start (muted), capture frames into canvas with a timer that targets fps (uses requestAnimationFrame to sync and timer)
+  - Draw watermark on canvas
+  - Feed frames to GIF encoder (gif.js)
+  - Provide progress and download link when done
+*/
+
+const fileInput = document.getElementById('file');
+const video = document.getElementById('preview');
+const startRange = document.getElementById('startRange');
+const endRange = document.getElementById('endRange');
+const startTimeLabel = document.getElementById('startTime');
+const endTimeLabel = document.getElementById('endTime');
+const setStartBtn = document.getElementById('set-start');
+const setEndBtn = document.getElementById('set-end');
+const convertBtn = document.getElementById('convert');
+const progressBar = document.getElementById('progressBar');
+const progressText = document.getElementById('progressText');
+const resultArea = document.getElementById('resultArea');
+const thumb = document.getElementById('thumb');
+
+const fpsInput = document.getElementById('fps');
+const resolutionSelect = document.getElementById('resolution');
+const watermarkTextInput = document.getElementById('watermarkText');
+const wmScale = document.getElementById('wmScale');
+const watermarkImageInput = document.getElementById('watermarkImage');
+const enableWatermarkCheckbox = document.getElementById('enableWatermark');
+
+let fileURL = null;
+let duration = 0;
+let userStart = 0;
+let userEnd = 0;
+let watermarkImage = null;
+
+/* Helpers */
+function fmt(t){ return (Math.round(t*100)/100).toFixed(2) }
+
+fileInput.addEventListener('change', e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  if(fileURL) URL.revokeObjectURL(fileURL);
+  fileURL = URL.createObjectURL(f);
+  video.src = fileURL;
+  video.load();
+  video.addEventListener('loadedmetadata', ()=> {
+    duration = video.duration || 0;
+    // set ranges
+    startRange.min = 0; startRange.max = 100; startRange.value = 0;
+    endRange.min = 0; endRange.max = 100; endRange.value = 100;
+    userStart = 0; userEnd = duration;
+    startTimeLabel.innerText = fmt(userStart);
+    endTimeLabel.innerText = fmt(userEnd);
+    progressText.innerText = `فيديو جاهز — مدة: ${fmt(duration)} ث`;
+  }, {once:true});
+});
+
+startRange.addEventListener('input', ()=> {
+  if(!duration) return;
+  userStart = (startRange.value/100)*duration;
+  if(userStart >= userEnd) userStart = Math.max(0, userEnd - 0.01);
+  startTimeLabel.innerText = fmt(userStart);
+});
+endRange.addEventListener('input', ()=> {
+  if(!duration) return;
+  userEnd = (endRange.value/100)*duration;
+  if(userEnd <= userStart) userEnd = Math.min(duration, userStart + 0.01);
+  endTimeLabel.innerText = fmt(userEnd);
+});
+
+setStartBtn.addEventListener('click', ()=>{
+  if(!duration) return;
+  userStart = video.currentTime || 0;
+  startRange.value = (userStart/duration)*100;
+  startTimeLabel.innerText = fmt(userStart);
+});
+setEndBtn.addEventListener('click', ()=>{
+  if(!duration) return;
+  userEnd = video.currentTime || duration;
+  endRange.value = (userEnd/duration)*100;
+  endTimeLabel.innerText = fmt(userEnd);
+});
+
+// Handle watermark image upload
+watermarkImageInput.addEventListener('change', e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = function(event) {
+    watermarkImage = new Image();
+    watermarkImage.onload = function() {
+      console.log('Watermark image loaded successfully');
+    };
+    watermarkImage.src = event.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+/* Conversion core */
+convertBtn.addEventListener('click', async ()=>{
+  if(!video.src){
+    alert('لم تقم باختيار فيديو بعد.');
+    return;
+  }
+  // settings
+  const targetFps = Math.max(1, Math.min(120, parseInt(fpsInput.value) || 60));
+  const outWidthSetting = resolutionSelect.value; // 'auto' or numeric width
+  const wmText = watermarkTextInput.value || '© V2GIF';
+  const wmSize = parseInt(wmScale.value) || 18;
+  const enableWatermark = enableWatermarkCheckbox.checked;
+
+  // calculate frames count (approx)
+  const segDur = Math.max(0.01, userEnd - userStart);
+  const estimatedFrames = Math.ceil(segDur * targetFps);
+
+  // create canvas sized to desired resolution
+  // if auto, use video.videoWidth
+  await ensureVideoReady();
+
+  let srcW = video.videoWidth;
+  let srcH = video.videoHeight;
+  let outW = srcW, outH = srcH;
+  if(outWidthSetting !== 'auto'){
+    outW = parseInt(outWidthSetting);
+    outH = Math.round(srcH * (outW / srcW));
+  }
+  // limit size to avoid memory explosion
+  const MAX_PIXELS = 1280*720;
+  if(outW * outH > MAX_PIXELS){
+    // scale down proportionally to fit roughly 1280x720
+    const scale = Math.sqrt(MAX_PIXELS / (outW * outH));
+    outW = Math.max(320, Math.round(outW * scale));
+    outH = Math.max(180, Math.round(outH * scale));
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = outW; canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+
+  // prepare gif.js
+  progressText.innerText = 'تحميل عامل الترميز (worker)...';
+  const gif = new GIF({
+    workers: navigator.hardwareConcurrency ? Math.min(4, navigator.hardwareConcurrency) : 2,
+    quality: 10, // lower => better quality, but slower. We'll pick 10 as compromise.
+    workerScript: 'gif.worker.js',
+    width: outW,
+    height: outH
+  });
+
+  let canceled = false;
+  convertBtn.disabled = true;
+
+  gif.on('progress', p=>{
+    const perc = Math.round(p*100);
+    progressBar.style.width = perc + '%';
+    progressText.innerText = `ترميز GIF: ${perc}%`;
+  });
+
+  gif.on('finished', blob=>{
+    convertBtn.disabled = false;
+    progressBar.style.width = '100%';
+    progressText.innerText = `تم الإنتهاء — الحجم: ${Math.round(blob.size/1024)} KB`;
+    const url = URL.createObjectURL(blob);
+    // show thumbnail (first frame)
+    const a = document.createElement('a'); a.href = url; a.download = `v2gif_${Date.now()}.gif`;
+    a.className = 'download-link';
+    a.innerText = 'تحميل GIF';
+    const img = document.createElement('img'); img.src = url; img.style.maxWidth='160px'; img.style.borderRadius='6px';
+    resultArea.innerHTML = '';
+    const wrapper = document.createElement('div'); wrapper.style.display='flex'; wrapper.style.gap='12px'; wrapper.style.alignItems='center';
+    wrapper.appendChild(img);
+    wrapper.appendChild(a);
+    resultArea.appendChild(wrapper);
+    // revoke object URLs after some time? leave to user
+  });
+
+  // Capture strategy:
+  // We'll seek video to start, play, and capture frames using a timer synced to target fps.
+  // Using video.play() and requestAnimationFrame ensures smooth capture on many devices.
+
+  // set up video
+  video.muted = true;
+  video.currentTime = userStart;
+  await Promise.resolve(); // allow currentTime to update
+  // ensure play is allowed
+  try { await video.play(); } catch(e){ /* maybe blocked */ }
+
+  // playbackRate 1 — we will manually sample according to fps target
+  // use timestamps to decide when to capture next frame
+  const interval = 1 / targetFps;
+  let nextCaptureTime = performance.now();
+  let captured = 0;
+  const realStart = performance.now();
+  let lastFrameTime = performance.now();
+
+  progressBar.style.width = '0%';
+  progressText.innerText = `التقاط الإطارات — 0 / ${estimatedFrames}`;
+
+  function drawFrameAndAdd() {
+    // draw current video frame scaled to canvas
+    // draw background black then image
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // compute draw size (letterbox)
+    let sw = video.videoWidth, sh = video.videoHeight;
+    let dw = canvas.width, dh = canvas.height;
+    // fit preserving aspect
+    const srcRatio = sw/sh, dstRatio = dw/dh;
+    let drawW = dw, drawH = dh;
+    if(srcRatio > dstRatio){
+      drawH = Math.round(dw / srcRatio);
+    } else {
+      drawW = Math.round(dh * srcRatio);
+    }
+    const dx = Math.round((dw - drawW)/2), dy = Math.round((dh - drawH)/2);
+    try{ ctx.drawImage(video, 0, 0, sw, sh, dx, dy, drawW, drawH); } catch(e){ /* cross-origin might block in rare cases */ }
+
+    // Apply watermark if enabled
+    if (enableWatermark) {
+      // If watermark image is available, use it
+      if (watermarkImage) {
+        const padding = 10;
+        const imgWidth = Math.min(canvas.width * 0.2, watermarkImage.width);
+        const imgHeight = (imgWidth / watermarkImage.width) * watermarkImage.height;
+        const imgX = canvas.width - imgWidth - padding;
+        const imgY = canvas.height - imgHeight - padding;
+        
+        // Draw semi-transparent background for watermark
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        roundRect(ctx, imgX - 5, imgY - 5, imgWidth + 10, imgHeight + 10, 8);
+        ctx.fill();
+        
+        // Draw the watermark image
+        ctx.drawImage(watermarkImage, imgX, imgY, imgWidth, imgHeight);
+      } else {
+        // Otherwise, use text watermark
+        const padding = 10;
+        const fontSize = wmSize;
+        ctx.font = `${fontSize}px Arial`;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        const text = wmText;
+        const metrics = ctx.measureText(text);
+        const tw = metrics.width, th = fontSize;
+        const tx = canvas.width - tw - padding;
+        const ty = canvas.height - padding - 4;
+
+        // dark rounded rect behind text
+        const rectPad = 8;
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        const rx = tx - rectPad, ry = ty - th - rectPad/2;
+        const rw = tw + rectPad*2, rh = th + rectPad;
+        roundRect(ctx, rx, ry, rw, rh, 8);
+        ctx.fill();
+
+        // text gradient
+        const g = ctx.createLinearGradient(tx, 0, tx + tw, 0);
+        g.addColorStop(0, '#fff'); g.addColorStop(1, '#ffd1d1');
+        ctx.fillStyle = g;
+        ctx.fillText(text, tx, ty);
+
+        // small logo left of text (circle)
+        const logoR = Math.max(6, Math.round(fontSize/2));
+        ctx.beginPath();
+        ctx.fillStyle = 'rgba(194,20,20,0.95)';
+        ctx.arc(rx + rectPad/2 + logoR, ry + rh/2, logoR, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+
+    // add to GIF (delay in ms)
+    const delayMs = Math.round(1000 / targetFps);
+    gif.addFrame(ctx, {copy:true, delay: delayMs});
+  }
+
+  // utility: rounded rect path
+  function roundRect(ctx,x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+  }
+
+  // capture loop using time-based sampling
+  let lastSampleTime = performance.now();
+  let stopRequested = false;
+
+  await new Promise((resolveMain, rejectMain)=>{
+    function step(now){
+      if(canceled || stopRequested){
+        try{ video.pause(); }catch(e){}
+        return resolveMain();
+      }
+      const curVideoTime = video.currentTime;
+      if(curVideoTime >= userEnd - 0.0005 || captured >= estimatedFrames + 2){
+        // finalize
+        stopRequested = true;
+        try{ video.pause(); }catch(e){}
+        progressText.innerText = `إنهاء التقاط — ${captured} إطار`;
+        // render GIF
+        progressText.innerText = 'بدء ترميز GIF...';
+        gif.render();
+        return; // wait for finished event
+      }
+      // time since last sample
+      const dt = (now - lastSampleTime) / 1000.0;
+      // capture if enough time passed or requestAnimationFrame aligned
+      if(dt >= (1/targetFps) * 0.9){ // small tolerance
+        try{
+          drawFrameAndAdd();
+          captured++;
+          const perc = Math.round((captured/Math.max(1,estimatedFrames)) * 100);
+          progressBar.style.width = Math.min(100, perc) + '%';
+          progressText.innerText = `التقاط الإطارات — ${captured} / ${estimatedFrames}`;
+        } catch(e){ console.error(e) }
+        lastSampleTime = now;
+      }
+      requestAnimationFrame(step);
+    }
+    // seek to start and play (we already attempted play)
+    video.currentTime = Math.max(0, userStart + 0.0001);
+    video.play().catch(()=>{ /* ignore autoplay block */ });
+    requestAnimationFrame(step);
+  });
+
+});
+
+async function ensureVideoReady(){
+  if(video.readyState >= 2) return;
+  await new Promise((res)=> video.addEventListener('loadeddata', ()=>res(), {once:true}));
+}
+</script>
+</body>
+</html>
